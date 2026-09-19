@@ -1,0 +1,6 @@
+/* App-level overrides — minimal, as design system lives in index.css */
+
+#root {
+  min-height: 100vh;
+  display: flex;
+}
