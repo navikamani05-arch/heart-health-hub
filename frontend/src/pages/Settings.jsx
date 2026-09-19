@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useLanguage } from '../context/LanguageContext';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -48,6 +49,7 @@ const ToggleSwitch = ({ checked, onChange, label }) => (
 export const Settings = () => {
   const { t, lang, setLang } = useLanguage();
   const { user, logout } = useAuth();
+  const navigate = useNavigate();
 
   const [notifications, setNotifications] = useState({
     healthReminders: true,
@@ -195,7 +197,10 @@ export const Settings = () => {
         <div className="glass-card" style={{ padding: '1.5rem' }}>
           <SectionHeader icon={LogOut} color="#fb7185" bg="rgba(251, 113, 133, 0.15)" title={t('settings.account.title') || 'Account Actions'} />
           <button
-            onClick={logout}
+            onClick={() => {
+              logout();
+              navigate('/login', { replace: true });
+            }}
             className="btn-secondary"
             style={{
               width: '100%', padding: '0.85rem 1rem', borderRadius: 10, cursor: 'pointer',
