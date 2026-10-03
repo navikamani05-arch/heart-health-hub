@@ -42,6 +42,7 @@ app = FastAPI(
 )
 
 frontend_url = os.environ.get("FRONTEND_URL", "").strip()
+
 allowed_origins = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
@@ -50,13 +51,14 @@ allowed_origins = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
 ]
+
 if frontend_url:
     allowed_origins.append(frontend_url)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=allowed_origins if frontend_url else ["*"],
-    allow_credentials=True if frontend_url else False,
+    allow_origins=allowed_origins,
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -319,23 +321,53 @@ def get_global_shap_image():
 @app.get("/api/reports/pdf/{prediction_id}")
 def download_pdf(prediction_id: int, lang: str = Query("en")):
     db = SessionLocal()
+
     try:
-        pred = db.query(Prediction).filter(Prediction.id == prediction_id).first()
+        # Find the prediction
+        pred = db.query(Prediction).filter(
+            Prediction.id == prediction_id
+        ).first()
+
         if not pred:
-            raise HTTPException(status_code=404, detail="Prediction not found")
+            raise HTTPException(
+                status_code=404,
+                detail="Prediction not found"
+            )
 
-        user = db.query(User).filter(User.id == pred.user_id).first()
-        username = user.username if user else "Patient"
+        # Find the patient/user who owns this prediction
+        user = db.query(User).filter(
+            User.id == pred.user_id
+        ).first()
 
+        if not user:
+            raise HTTPException(
+                status_code=404,
+                detail=f"User not found for prediction {prediction_id}"
+            )
+
+        # Get the patient's name
+        username = user.username
+
+        # Get SHAP features
         top_feats = json.loads(pred.top_shap_features)
-        feature_proxy = {k: (1 if v > 0 else 0) for k, v in top_feats.items()}
+
+        # Prepare features for recommendations
+        feature_proxy = {
+            k: (1 if v > 0 else 0)
+            for k, v in top_feats.items()
+        }
+
+        # Generate recommendations
         rec_keys = generate_recommendations(feature_proxy)
         recs = [t(k, lang=lang) for k in rec_keys]
 
-        shap_img = 'images/explainability/local_waterfall.png'
+        # SHAP image
+        shap_img = "images/explainability/local_waterfall.png"
+
         if not os.path.exists(shap_img):
             shap_img = None
 
+        # Generate PDF
         pdf_bytes = generate_pdf_report(
             username=username,
             timestamp=pred.created_at,
@@ -348,11 +380,16 @@ def download_pdf(prediction_id: int, lang: str = Query("en")):
             lang=lang
         )
 
+        # Return PDF
         return StreamingResponse(
             io.BytesIO(pdf_bytes),
             media_type="application/pdf",
-            headers={"Content-Disposition": f"attachment; filename=cardiorisk_report_{prediction_id}.pdf"}
+            headers={
+                "Content-Disposition":
+                f"attachment; filename=cardiorisk_report_{prediction_id}.pdf"
+            }
         )
+
     finally:
         db.close()
 
